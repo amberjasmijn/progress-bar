@@ -1,120 +1,142 @@
-type Status = 'running' | 'stopped' | 'idle'
+import { State, Status, Style } from "./types";
+import {
+  css as setCss,
+  getStatus,
+  increment,
+  nextStatus,
+  removeElement,
+  toPercentage,
+} from "./utils";
 
-interface State {
-  progress: number
-  isRendered: boolean
-  status: Status[]
-}
+const style: Style = {
+  background: "grey",
+  width: "100%",
+  height: "2px",
+  position: "fixed",
+  top: "0",
+  left: "0",
+  transform: "translate3d(-100%,0,0)",
+  transition: "all 200ms",
+  zIndex: "999",
+};
 
-const initialState = (): State => ({ progress: 0.08, isRendered: false, status: ['idle'] })
+const config = {
+  selector: ".bar",
+  speed: 300,
+};
 
-let animationId
+/**
+ *
+ * @returns the initial state
+ */
+const initialState = (): State => ({
+  progress: 0.08,
+  status: ["idle"],
+});
 
-let state = initialState()
+/**
+ * Global state object
+ */
+let state = initialState();
 
-const removeFirst = (statuses: Status[]): Status[] => statuses.slice(1)
+/**
+ * Instantiate an animation ID
+ */
+let animation;
 
-const css = (element: HTMLDivElement, style: any) => {
-  for (const property in style) { element.style[property] = style[property] }
-}
+/**
+ *
+ * @param state
+ * @returns a CSS style object
+ */
+const createStyle = (progress: State["progress"]): Style => ({
+  background: "grey",
+  width: "100%",
+  height: "2px",
+  position: "fixed",
+  top: "0",
+  left: "0",
+  transform: "translate3d(" + toPercentage(progress) + "%,0,0)",
+  transition: "all 200ms ease-in",
+  zIndex: "999999",
+});
 
-function clamp (n: number, min: number, max: number) {
-  if (n < min) return min
-  if (n > max) return max
-  return n
-}
+/**
+ * Renders the HTML element and sets the initial style
+ */
+const renderHtml = (): void => {
+  const progress = document.createElement("div");
+  progress.innerHTML = '<div class="bar" role="bar"></div>';
+  document.querySelector("body")?.appendChild(progress);
 
-const toPercentage = (n: number) => (-1 + n) * 100
+  const bar = document.querySelector(".bar") as HTMLDivElement;
 
-// Render the progress bar with the new state
-const render = () => {
-  if (!state.isRendered) {
-    const progress = document.createElement('div')
-    progress.innerHTML = '<div class="bar" role="bar"></div>'
-    document.querySelector('body')?.appendChild(progress)
+  setCss(bar, style);
+};
 
-    const bar = document.querySelector('.bar') as HTMLDivElement
+const updateWidth = (state: State): void | number => {
+  const bar = document.querySelector(".bar") as HTMLDivElement;
 
-    const style = { background: 'black', width: '100%', height: '5px', position: 'fixed', top: '0', left: '0', transform: 'translate3d(-100%,0,0)', transition: 'all 200ms' }
-
-    css(bar, style)
-
-    state = {
-      ...state,
-      isRendered: true,
-      status: ['running']
-    }
-  }
-}
-
-const set = () => {
-  const bar = document.querySelector('.bar') as HTMLDivElement
-
-  const style = { background: 'black', width: '100%', height: '5px', position: 'fixed', top: '0', left: '0', transform: 'translate3d(' + toPercentage(state.progress) + '%,0,0)', transition: 'all 200ms ease-in' }
-
-  const stoppedStyled = { background: 'black', width: '100%', height: '5px', position: 'fixed', top: '0', left: '0', transform: 'translate3d(' + toPercentage(1) + '%,0,0)', transition: 'all 200ms ease-in' }
-
-  if (getStatus(state) === 'stopped') {
-    css(bar, stoppedStyled)
+  if (getStatus(state) === "stopped") {
+    setCss(bar, createStyle(1));
 
     return setTimeout(() => {
-      const container = bar.parentElement
+      const container = bar.parentElement;
       if (container) {
-        removeElement(container)
+        removeElement(container);
       }
-    }, 600)
+    }, config.speed);
   }
 
   if (bar) {
-    return css(bar, style)
+    return setCss(bar, createStyle(state.progress));
   }
-}
+};
 
-const increment = (state: State): number => {
-  return clamp(state.progress + Math.random() * 0.04, 0, 0.994)
-}
-
-const isRendered = () => !!document.querySelector('.bar')
-
-const nextStatus = (state: State): Status[] => state.status.length > 1 ? removeFirst(state.status) : state.status
-
-// Update the state
 const next = (state: State): State => ({
   ...state,
-  isRendered: isRendered(),
   progress: increment(state),
-  status: nextStatus(state)
-})
+  status: nextStatus(state),
+});
 
-const reset = () => initialState()
+const enqueueStatus = (state: State, status: Status): State => ({
+  ...state,
+  status: state.status.concat(status),
+});
 
-const removeElement = (element: HTMLElement): void => element.remove()
-
-const enqueueStatus = (state: State, status: Status): State =>
-  ({ ...state, status: state.status.concat(status) })
-
-const getStatus = (s: State): Status => s.status[0]
-
+/**
+ * Animation/loop function that renders the next state,
+ * or cancels the animation in the next call
+ */
 const run = (t1: number) => (t2: number) => {
-  if (t2 - t1 > 800) {
-    if (getStatus(state) === 'stopped') {
-      state = reset()
-      window.cancelAnimationFrame(animationId)
+  if (t2 - t1 > config.speed) {
+    if (getStatus(state) === "stopped") {
+      window.cancelAnimationFrame(animation);
+      state = initialState();
     } else {
-      state = next(state)
-      set()
-      animationId = window.requestAnimationFrame(run(t2))
+      state = next(state);
+      updateWidth(state);
+      animation = window.requestAnimationFrame(run(t2));
     }
   } else {
-    animationId = window.requestAnimationFrame(run(t1))
+    animation = window.requestAnimationFrame(run(t1));
   }
-}
+};
 
-document.getElementById('start')?.addEventListener('click', () => {
-  render()
-  animationId = window.requestAnimationFrame(run(0))
-})
+/**
+ * Renders the HTML and requests an animation frame
+ */
+const start = (): void => {
+  renderHtml();
+  state = {
+    ...state,
+    status: ["running"],
+  };
+  animation = window.requestAnimationFrame(run(0));
+};
 
-document.getElementById('stop')?.addEventListener('click', () => {
-  state = enqueueStatus(state, 'stopped')
-})
+const stop = (): void => {
+  state = enqueueStatus(state, "stopped");
+};
+
+export { start, stop };
