@@ -1,8 +1,13 @@
-export type Status = "running" | "stopped" | "idle";
+export enum Status {
+  Start = "start",
+  Running = "running",
+  Stopping = "stopping",
+  Stopped = "stopped",
+}
 
 export interface State {
   progress: number;
-  status: Status[];
+  status: Status;
 }
 
 export type Style = Pick<
@@ -17,3 +22,7 @@ export type Style = Pick<
   | "transition"
   | "zIndex"
 >;
+
+export type Optional<T> = {
+  [P in keyof T]?: T[P];
+};
