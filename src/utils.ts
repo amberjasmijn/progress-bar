@@ -1,7 +1,10 @@
-import { Settings } from ".";
-import { State, Status, Style } from "./types";
+import { Settings } from "./Progress";
+import { Optional, State, Style } from "./types";
 
-export const addCssToElement = (element: HTMLElement, style: Style): void => {
+export const addCssToElement = (
+  element: HTMLElement,
+  style: Optional<Style>
+): void => {
   for (const property in style) {
     element.style[property] = style[property];
   }
@@ -18,8 +21,6 @@ export const increment = (
 ): number => clamp(state.progress + Math.random() * dribbleSpeed, 0, 0.994);
 
 export const removeElement = (element: HTMLElement): void => element.remove();
-
-export const removeFirst = (statuses: Status[]): Status[] => statuses.slice(1);
 
 export function getElement(selector: string): HTMLElement {
   const element = document.querySelector(selector) as HTMLElement;
