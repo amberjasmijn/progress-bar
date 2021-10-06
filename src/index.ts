@@ -1,12 +1,13 @@
 import { Optional, Status, Style } from "./types";
 import {
   addCssToElement,
+  getElement,
   increment,
   removeElement,
   toPercentage,
 } from "./utils";
 
-const style: Style = {
+const defaultStyle: Style = {
   background: "grey",
   width: "100%",
   height: "2px",
@@ -29,12 +30,10 @@ const defaultSettings: Settings = {
   template: '<div class="bar" role="bar"></div>',
 };
 
-const createStyle = (progress: State["progress"]): Style => ({
-  ...style,
-  transform: "translate3d(" + toPercentage(progress) + "%,0,0)",
-});
-
-interface Settings {
+/**
+ * Configurable settings of the progress bar.
+ */
+export interface Settings {
   speed: number;
   minimum: number;
   easing: string;
@@ -46,132 +45,129 @@ interface Settings {
 }
 
 export interface State {
+  /**
+   * Number between 0 and 1
+   */
   progress: number;
+  /**
+   * State of the progress bar: start, running, stopping, stopped.
+   */
   status: Status;
 }
 
+/**
+ * Creates a progress bar, that can be used by using the start and stop method.
+ */
 class Progress {
-  private animation: number | undefined;
-  private state: State;
-  settings: Settings;
+  private _settings: Settings;
+  private _animation: number | undefined;
+  private _state: State;
 
-  constructor({
-    dribble,
-    dribbleSpeed,
-    easing,
-    minimum,
-    parent,
-    selector,
-    speed,
-    template,
-  }: Settings) {
-    this.state = Progress.initialState;
-    this.settings = {
-      dribble,
-      dribbleSpeed,
-      easing,
-      minimum,
-      parent,
-      selector,
-      speed,
-      template,
+  constructor(settings: Settings) {
+    this._settings = settings;
+    this._state = {
+      progress: settings.minimum,
+      status: Status.Start,
     };
   }
 
-  static initialState: State = {
-    progress: 0.08,
+  private initialState = (): State => ({
+    progress: this._settings.minimum,
     status: Status.Start,
-  };
+  });
+
+  private setCssTransform = (
+    progress: State["progress"],
+    style: Style
+  ): Style => ({
+    ...style,
+    transform: "translate3d(" + toPercentage(progress) + "%, 0, 0)",
+  });
+
+  private setState = (state: State, next?: Status): State => ({
+    status: next || state.status,
+    progress: increment(state, this._settings.dribbleSpeed),
+  });
 
   private renderProgressBar = (): void => {
-    const { selector, parent, template } = this.settings;
-    const progress = document.createElement("div");
-    progress.innerHTML = template;
-    document.querySelector(parent)?.appendChild(progress);
+    const { selector, parent, template } = this._settings;
 
-    const element = document.querySelector(selector) as HTMLDivElement | null;
+    // Create a container for the progress bar
+    const container = document.createElement("div");
 
-    if (!element) {
-      throw Error("Element not found in DOM");
-    }
+    // Set the innerHTML of the container with the specified template
+    container.innerHTML = template;
 
-    addCssToElement(element, style);
+    // Add the created element to the specified parent container
+    document.querySelector(parent)?.appendChild(container);
+
+    // Select the created progress bar and add the initial style object to it
+    const progressBar = getElement(selector);
+    addCssToElement(progressBar, defaultStyle);
   };
 
-  private updateProgressBar = ({ status, progress }: State): void | number => {
-    const { selector, speed } = this.settings;
-    const element = document.querySelector(selector) as HTMLDivElement | null;
+  private updateProgressBar = (state: State): void | number => {
+    const { selector, speed } = this._settings;
 
-    if (!element) {
-      throw Error("Element not found in DOM");
-    }
+    // Select the created progress bar and add the initial style object to it
+    const progressBar = getElement(selector);
 
-    if (status === Status.Stopping) {
-      addCssToElement(element, createStyle(1));
+    // Fill out the progress bar before removing
+    if (state.status === Status.Stopping) {
+      addCssToElement(progressBar, this.setCssTransform(1, defaultStyle));
 
       return setTimeout(() => {
-        const container = element?.parentElement;
+        const container = progressBar?.parentElement;
         if (container) {
           removeElement(container);
         }
       }, speed);
     }
 
-    addCssToElement(element, createStyle(progress));
+    // Update the CSS of the progress bar with update progress (between 0 and 1)
+    addCssToElement(
+      progressBar,
+      this.setCssTransform(state.progress, defaultStyle)
+    );
   };
 
-  private nextState = (state: State): State => ({
-    ...state,
-    progress: increment(state, this.settings.dribbleSpeed),
-  });
-
   private loop = (t1: number) => (t2: number) => {
-    if (t2 - t1 > this.settings.speed) {
-      if (this.state.status === Status.Stopping) {
-        this.updateProgressBar(this.state);
-        this.state = {
-          ...this.state,
-          status: Status.Stopped,
-        };
+    const { status } = this._state;
+    const { speed } = this._settings;
 
-        return (this.animation = window.requestAnimationFrame(this.loop(t2)));
+    if (t2 - t1 > speed) {
+      if (status === Status.Stopping) {
+        this.updateProgressBar(this._state);
+        this._state = this.setState(this._state, Status.Stopped);
       }
 
-      if (this.state.status === Status.Stopped) {
-        if (!this.animation) {
+      if (status === Status.Stopped) {
+        if (!this._animation) {
           throw Error("Animation is already canceled");
         }
-        window.cancelAnimationFrame(this.animation);
-        return (this.state = Progress.initialState);
+        this._state = this.initialState();
+        return window.cancelAnimationFrame(this._animation);
       }
 
-      if (
-        this.state.status === Status.Start ||
-        this.state.status === Status.Running
-      ) {
-        this.state = this.nextState(this.state);
-        this.updateProgressBar(this.state);
-        return (this.animation = window.requestAnimationFrame(this.loop(t2)));
+      if (status === Status.Start || status === Status.Running) {
+        this._state = this.setState(this._state);
+        this.updateProgressBar(this._state);
       }
+
+      return (this._animation = window.requestAnimationFrame(this.loop(t2)));
     } else {
-      return (this.animation = window.requestAnimationFrame(this.loop(t1)));
+      return (this._animation = window.requestAnimationFrame(this.loop(t1)));
     }
   };
 
   public start = (): void => {
     this.renderProgressBar();
-    this.state = {
-      ...this.state,
-      status: Status.Running,
-    };
-    this.animation = window.requestAnimationFrame(this.loop(0));
+    this._state = this.setState(this._state, Status.Running);
+    this._animation = window.requestAnimationFrame(this.loop(0));
   };
 
   public stop = (): void => {
-    this.state = {
-      ...this.state,
-      status: Status.Stopping,
-    };
+    this._state = this.setState(this._state, Status.Stopping);
   };
 }
 
