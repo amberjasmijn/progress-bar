@@ -1,4 +1,4 @@
-import { Settings } from "./Progress";
+import { Settings } from "./progress";
 import { Style } from "./types";
 
 export const defaultStyle: Style = {

@@ -1,4 +1,4 @@
-import { Settings } from "./Progress";
+import { Settings } from "./progress";
 import { Optional, State, Style } from "./types";
 
 export const addCssToElement = (
