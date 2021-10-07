@@ -1,4 +1,5 @@
-import { Status, Style } from "./types";
+import { defaultSettings, defaultStyle } from "./defaults";
+import { Optional, Status, Style } from "./types";
 import {
   addCssToElement,
   getElement,
@@ -19,7 +20,7 @@ export interface Settings {
   selector: string;
   parent: string;
   template: string;
-  style: Style;
+  style: Optional<Style>;
 }
 
 export interface State {
@@ -41,25 +42,24 @@ export class Progress {
   private _animation: number | undefined;
   private _state: State;
 
-  constructor(settings: Settings) {
-    this._settings = settings;
+  constructor(settings: Optional<Settings>) {
     this._state = {
-      progress: settings.minimum,
+      progress: settings.minimum || defaultSettings.minimum,
       status: Status.Start,
+    };
+    this._settings = {
+      ...defaultSettings,
+      ...settings,
+      style: {
+        ...defaultStyle,
+        ...settings.style,
+      },
     };
   }
 
   private initialState = (): State => ({
     progress: this._settings.minimum,
     status: Status.Start,
-  });
-
-  private setCssTransform = (
-    progress: State["progress"],
-    style: Style
-  ): Style => ({
-    ...style,
-    transform: "translate3d(" + toPercentage(progress) + "%, 0, 0)",
   });
 
   private setState = (state: State, next?: Status): State => ({

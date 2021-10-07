@@ -1,15 +1,15 @@
 import { Settings } from "./Progress";
 import { Style } from "./types";
 
-const defaultStyle: Style = {
+export const defaultStyle: Style = {
   background: "grey",
   width: "100%",
   height: "2px",
   position: "fixed",
   top: "0",
   left: "0",
-  transform: "translate3d(-100%,0,0)",
-  transition: "all 200ms",
+  transform: "translate3d(-100%, 0, 0)",
+  transition: "all 200ms ease",
   zIndex: "999",
 };
 
